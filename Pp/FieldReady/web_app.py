@@ -1154,7 +1154,7 @@ def restock():
     return render_template(
         "stock_form.html",
         title="Restock warehouse",
-        description="Record bulk deliveries and keep the central stock position current.",
+        description="Record Deliveries and Maintain Current Inventory",
         form_heading="Add stock to the warehouse",
         submit_label="Add to central inventory",
     )

@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Dispatch queue{% endblock %}
 {% block content %}
-<header class="page-heading"><div><p class="eyebrow">WAREHOUSE / ALLOCATION</p><h1>Dispatch queue</h1><p>Requests are ordered by urgency and fulfilled from available central stock.</p></div></header>
-<section class="section-block"><div class="section-heading"><div><p class="eyebrow">OPEN REQUESTS</p><h2>{{ requests|length }} pending</h2></div></div>
+<header class="page-heading"><div><p class="eyebrow">WAREHOUSE / ALLOCATION</p><h1>Dispatch queue</h1><p>Priority requests get fulfilled first, directly from our central inventory.</p></div></header>
+<section class="section-block"><div class="section-heading"><div><p class="eyebrow">CURRENT REQUESTS</p><h2>{{ requests|length }} pending</h2></div></div>
   {% if requests %}<div class="table-wrap"><table><thead><tr><th>PRIORITY ORDER</th><th>SHELTER</th><th>SUPPLY</th><th>REQUESTED</th><th>CENTRAL AVAILABLE</th><th>AFTER DISPATCH</th></tr></thead><tbody>
     {% for item in requests %}<tr><td><span class="queue-rank">{{ "%02d"|format(loop.index) }}</span> <span class="priority priority-{{ item.urgency|lower }}">{{ item.urgency }}</span></td><td class="cell-strong">{{ item.shelter }}</td><td>{{ item.item }}</td><td>{{ "{:,.0f}".format(item.qty) }}</td><td>{{ "{:,.0f}".format(inventory.get(item.item, 0)) }}</td><td>{% if inventory.get(item.item, 0) >= item.qty %}<span class="quantity-clear">Full</span>{% elif inventory.get(item.item, 0) > 0 %}<span class="quantity-alert">Partial</span>{% else %}<span class="stock-state stock-low">Out of stock</span>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>
   <form method="post" class="dispatch-action"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Dispatch will update warehouse counts and request statuses immediately.</p><button class="button button-primary" type="submit">Run priority dispatch <span aria-hidden="true">&rarr;</span></button></form>
-  {% else %}<div class="empty-state"><span class="empty-mark">—</span><strong>Queue is clear</strong><p>New deficit requests will be sorted here by urgency.</p></div>{% endif %}
+  {% else %}<div class="empty-state"><span class="empty-mark">—</span><strong>Queue is clear</strong><p>New requests will be sorted here by urgency.</p></div>{% endif %}
 </section>
 {% endblock %}
