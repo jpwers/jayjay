@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}{{ code }}{% endblock %}
+{% block content %}
+<section class="error-state"><p class="eyebrow">REQUEST UNAVAILABLE / {{ code }}</p><h1>{{ message }}</h1><a class="button button-primary" href="{{ url_for('dashboard') }}">Return to overview</a></section>
+{% endblock %}

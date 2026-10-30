@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090f12">
+  <title>{% block title %}Operations{% endblock %} | Bytes Of Hope · By Muroor Bytes</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+{% if session.get('username') %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}" aria-label="Bytes Of Hope home">
+      <img class="brand-mark" src="{{ url_for('static', filename='bytes-of-hope-mark.png') }}" alt="">
+      <span><strong>Bytes Of Hope</strong><small>By Muroor Bytes</small></span>
+    </a>
+    <div class="topbar-right">
+      <span class="connection"><i></i> Operations online</span>
+      <span class="identity">{{ current_display_name() }}</span>
+      <form method="post" action="{{ url_for('logout') }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-quiet button-small" type="submit">Sign out</button>
+      </form>
+    </div>
+  </header>
+  <div class="app-frame">
+    <aside class="sidebar">
+      <p class="nav-caption">OPERATIONS</p>
+      <nav aria-label="Main navigation">
+        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><span class="nav-index">01</span>Overview</a>
+        <a class="nav-link {% if request.endpoint == 'inventory' %}active{% endif %}" href="{{ url_for('inventory') }}"><span class="nav-index">02</span>Inventory</a>
+        <a class="nav-link {% if request.endpoint == 'requests_page' %}active{% endif %}" href="{{ url_for('requests_page') }}"><span class="nav-index">03</span>Needs &amp; requests</a>
+        {% if session.get('role') == 'admin' %}
+          <a class="nav-link {% if request.endpoint == 'restock' %}active{% endif %}" href="{{ url_for('restock') }}"><span class="nav-index">04</span>Stock UP</a>
+          <a class="nav-link {% if request.endpoint == 'dispatch' %}active{% endif %}" href="{{ url_for('dispatch') }}"><span class="nav-index">05</span>Dispatch queue</a>
+        {% else %}
+          <a class="nav-link {% if request.endpoint == 'contributions' %}active{% endif %}" href="{{ url_for('contributions') }}"><span class="nav-index">04</span>Log contribution</a>
+          <a class="nav-link {% if request.endpoint == 'assessment' %}active{% endif %}" href="{{ url_for('assessment') }}"><span class="nav-index">05</span>Assess needs</a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-note"><span class="status-dot"></span><span>Shared live inventory<br><small>Updates save automatically</small></span></div>
+    </aside>
+    <main class="main-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}<div class="flash-stack">{% for category, message in messages %}<div class="flash flash-{{ category }}" role="status">{{ message }}</div>{% endfor %}</div>{% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+{% else %}
+  {% block unauthenticated %}{% endblock %}
+{% endif %}
+</body>
+</html>
