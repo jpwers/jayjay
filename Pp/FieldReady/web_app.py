@@ -1202,14 +1202,21 @@ def requests_page():
 
 
 @app.post("/requests/clear")
-@role_required("admin")
+@login_required
 def clear_request_activity():
     state = current_state()
-    request_count = len(state["requests"])
-    assessment_count = len(state["last_requests"])
-    state["requests"].clear()
-    state["last_requests"].clear()
-    flash(f"Cleared {request_count} requests and {assessment_count} saved requests.", "success")
+    if session["role"] == "admin":
+        request_count = len(state["requests"])
+        assessment_count = len(state["last_requests"])
+        state["requests"].clear()
+        state["last_requests"].clear()
+        flash(f"Cleared {request_count} requests and {assessment_count} saved requests.", "success")
+    else:
+        shelter_name = state["shelters"][current_shelter_key()]["name"]
+        shelter_requests = [item for item in state["requests"] if item["shelter"] == shelter_name]
+        state["requests"] = [item for item in state["requests"] if item["shelter"] != shelter_name]
+        state["last_requests"].pop(current_shelter_key(), None)
+        flash(f"Cleared {len(shelter_requests)} of your recorded requests.", "success")
     return redirect(url_for("requests_page"))
 
 
