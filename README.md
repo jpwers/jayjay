@@ -9,7 +9,12 @@ Bytes Of Hope is a web app for coordinating emergency supplies between a central
 - Shelter contribution and warehouse restocking forms
 - Needs assessments based on shelter population and on-hand stock
 - Shared request queue and warehouse dispatch workflow
+- Date-ranged shelter request reports downloadable as JSON, CSV, or PDF
 - SQLite persistence
+
+The **Export & Reporting** section on the Needs & requests page exports requests within an inclusive date range. JSON reports include `start_date`, `end_date`, fulfilled/unfulfilled/total counts, and matching request details. Partial, pending, and other non-fulfilled statuses count as unfulfilled. Existing requests without a recorded creation date are excluded.
+
+The authenticated report endpoint is `/reports/requests/<format>` (`json`, `csv`, or `pdf`) with `start_date` and `end_date` query parameters in `YYYY-MM-DD` format.
 
 ## Run locally
 

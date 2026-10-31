@@ -14,13 +14,14 @@
   <section class="section-block results-block">
     <div class="result-banner"><div><p class="eyebrow">ASSESSMENT RESULT</p><h2>Requirements vs. on-hand</h2></div><div class="result-priority"><span class="priority priority-{{ results.urgency|lower }}">{{ results.urgency }} priority</span><span>{{ "{:.0%}".format(results.injury_rate) }} injury rate</span></div></div>
     <div class="calculation-note"><strong>Calculation basis</strong><span>Water: 2 per person</span><span>Food, bedding, toiletries: 1 per person</span><span>First aid kits: 1 per injured person</span></div>
-    <div class="table-wrap"><table><thead><tr><th>SUPPLY</th><th>REQUIRED</th><th>ON-HAND</th><th>DEFICIT</th><th>SURPLUS</th></tr></thead><tbody>
-      {% for row in results.rows %}<tr><td class="cell-strong">{{ row.item }}</td><td>{{ "{:,.0f}".format(row.required) }}</td><td>{{ "{:,.0f}".format(row.on_hand) }}</td><td>{% if row.deficit %}<span class="quantity-alert">{{ "{:,.0f}".format(row.deficit) }}</span>{% else %}<span class="quantity-clear">0</span>{% endif %}</td><td>{{ "{:,.0f}".format(row.surplus) }}</td></tr>{% endfor %}
-    </tbody></table></div>
     <form method="post" action="{{ url_for('submit_assessment') }}" class="submit-assessment">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p class="request-selection-hint">Choose which deficit items to request. Items are selected by default.</p>
+      <div class="table-wrap"><table><thead><tr><th>REQUEST</th><th>SUPPLY</th><th>REQUIRED</th><th>ON-HAND</th><th>DEFICIT</th><th>SURPLUS</th></tr></thead><tbody>
+        {% for row in results.rows %}<tr><td>{% if row.deficit %}<input class="item-request-checkbox" type="checkbox" name="requested_items" value="{{ row.item }}" aria-label="Request {{ row.item }}" checked>{% else %}<span class="unit-label">—</span>{% endif %}</td><td class="cell-strong">{{ row.item }}</td><td>{{ "{:,.0f}".format(row.required) }}</td><td>{{ "{:,.0f}".format(row.on_hand) }}</td><td>{% if row.deficit %}<span class="quantity-alert">{{ "{:,.0f}".format(row.deficit) }}</span>{% else %}<span class="quantity-clear">0</span>{% endif %}</td><td>{{ "{:,.0f}".format(row.surplus) }}</td></tr>{% endfor %}
+      </tbody></table></div>
       <label class="check-row"><input type="checkbox" name="return_surplus"><span>Return calculated surplus to central warehouse</span></label>
-      <button class="button button-primary" type="submit">Submit deficit requests <span aria-hidden="true">&rarr;</span></button>
+      <button class="button button-primary" type="submit">Submit selected item requests <span aria-hidden="true">&rarr;</span></button>
     </form>
   </section>
 {% endif %}

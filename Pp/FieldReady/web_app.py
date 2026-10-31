@@ -1,13 +1,22 @@
+import csv
 import difflib
+import io
 import json
 import os
 import re
 import secrets
 import sqlite3
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from xml.sax.saxutils import escape
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, g, jsonify, make_response, redirect, render_template, request, session, url_for
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -73,6 +82,44 @@ def default_state():
     }
 
 
+def request_timestamp():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def is_food_category_name(value):
+    normalized = re.sub(r"[^a-z0-9]", "", value.casefold())
+    return normalized in {"food", "foodkit", "foodkits"}
+
+
+def canonicalize_food_category(state):
+    stock_groups = [state.get("central_inventory", {})]
+    stock_groups.extend(
+        shelter.get("current_stock", {})
+        for shelter in state.get("shelters", {}).values()
+        if isinstance(shelter, dict)
+    )
+    stock_groups.extend(
+        stock for stock in state.get("shelter_inventory", {}).values()
+        if isinstance(stock, dict)
+    )
+
+    for stock in stock_groups:
+        if not isinstance(stock, dict):
+            continue
+        aliases = [item for item in stock if isinstance(item, str) and is_food_category_name(item) and item != "Food"]
+        for alias in aliases:
+            quantity = stock.pop(alias)
+            if isinstance(quantity, int) and not isinstance(quantity, bool) and quantity >= 0:
+                stock["Food"] = stock.get("Food", 0) + quantity
+
+    for requests_key in ("requests", "requests_queue"):
+        requests_list = state.get(requests_key, [])
+        if isinstance(requests_list, list):
+            for item in requests_list:
+                if isinstance(item, dict) and isinstance(item.get("item"), str) and is_food_category_name(item["item"]):
+                    item["item"] = "Food"
+
+
 def valid_stock(stock):
     return {
         item: quantity
@@ -96,6 +143,7 @@ def migrate_json_state(state):
             state["shelters"][username]["current_stock"].update(valid_stock(stock))
     state["requests"] = saved.get("requests_queue", []) if isinstance(saved.get("requests_queue"), list) else []
     state["last_requests"] = saved.get("last_requests", {}) if isinstance(saved.get("last_requests"), dict) else {}
+    canonicalize_food_category(state)
     return state
 
 
@@ -122,10 +170,12 @@ def initialize_database():
             connection.execute("INSERT INTO app_state (id, payload) VALUES (1, ?)", (json.dumps(state),))
         else:
             state = json.loads(saved["payload"])
+            canonicalize_food_category(state)
             if not isinstance(state.get("last_requests"), dict):
                 last_assessments = state.get("last_assessments", {})
                 state["last_requests"] = last_assessments if isinstance(last_assessments, dict) else {}
                 state.pop("last_assessments", None)
+            if state != json.loads(saved["payload"]):
                 connection.execute(
                     "UPDATE app_state SET payload = ? WHERE id = 1",
                     (json.dumps(state),),
@@ -229,7 +279,7 @@ def normalize_web_item_name(raw_name, inventory):
     if any(word in cleaned for word in ("water", "drink", "watr", "bottle", "fluid", "hydration")):
         return "Water"
     if any(word in cleaned for word in ("food", "meal", "ration", "snack", "eat")):
-        return "Food Kits"
+        return "Food"
     if any(word in cleaned for word in ("first aid", "medical", "medicine", "aid", "kt", "kits")):
         return "First Aid Kits"
     if any(word in cleaned for word in ("bed", "blanket", "pillow", "bedng", "cot")):
@@ -331,6 +381,8 @@ def load_state(path=STATE_FILE):
     except (OSError, json.JSONDecodeError) as error:
         return f"Saved data could not be loaded. Default inventory will be used.\n{error}"
 
+    canonicalize_food_category(state)
+
     def restore_stock(saved, current):
         if not isinstance(saved, dict):
             return
@@ -385,7 +437,7 @@ def normalize_item_name(raw_name):
     if any(k in cleaned for k in ["water", "drink", "watr", "bottle", "fluid", "hydration"]):
         return "Water"
     if any(k in cleaned for k in ["food", "meal", "ration", "snack", "eat"]):
-        return "Food Kits"
+        return "Food"
     if any(k in cleaned for k in ["first aid", "medical", "medicine", "aid", "kt", "kits"]):
         return "First Aid Kits"
     if any(k in cleaned for k in ["bed", "blanket", "pillow", "bedng", "cot"]):
@@ -571,7 +623,8 @@ def process_shelter_needs_and_surplus(username):
                 "item": item,
                 "qty": deficit_qty,
                 "urgency": urgency,
-                "status": "Pending"
+                "status": "Pending",
+                "created_at": request_timestamp(),
             })
             
         for item, surplus_qty in surplus_donations.items():
@@ -946,7 +999,14 @@ class ReliefApp:
         deficits = 0
         for item, _required, _on_hand, deficit, surplus in self.assessment["rows"]:
             if deficit:
-                requests_queue.append({"shelter": self.assessment["shelter"], "item": item, "qty": deficit, "urgency": self.assessment["urgency"], "status": "Pending"})
+                requests_queue.append({
+                    "shelter": self.assessment["shelter"],
+                    "item": item,
+                    "qty": deficit,
+                    "urgency": self.assessment["urgency"],
+                    "status": "Pending",
+                    "created_at": request_timestamp(),
+                })
                 deficits += 1
             if self.return_surplus.get() and surplus:
                 stock = shelters_accounts[self.user]["current_stock"]
@@ -1043,21 +1103,22 @@ def assess_shelter(state, username, people, injured):
     return {"urgency": urgency, "injury_rate": ratio, "rows": rows}
 
 
-def record_assessment_row(state, username, shelter_name, urgency, row, return_surplus):
+def record_assessment_row(state, username, shelter_name, urgency, row, return_surplus, request_selected=True):
     deficit = row["deficit"]
-    if deficit:
+    if deficit and request_selected:
         state["requests"].append({
             "shelter": shelter_name,
             "item": row["item"],
             "qty": deficit,
             "urgency": urgency,
             "status": "Pending",
+            "created_at": request_timestamp(),
         })
     if return_surplus and row["surplus"]:
         item = row["item"]
         state["central_inventory"][item] = state["central_inventory"].get(item, 0) + row["surplus"]
         state["shelters"][username]["current_stock"][item] -= row["surplus"]
-    return bool(deficit)
+    return bool(deficit and request_selected)
 
 
 def request_is_open(item):
@@ -1198,7 +1259,207 @@ def requests_page():
     if session["role"] == "shelter":
         shelter_name = state["shelters"][current_shelter_key()]["name"]
         rows = [item for item in rows if item["shelter"] == shelter_name]
-    return render_template("requests.html", requests=list(reversed(rows)))
+
+    sort_order = request.args.get("sort", "newest_first")
+    if sort_order not in {"newest_first", "oldest_first", "custom_range"}:
+        flash("Choose a valid request date order.", "error")
+        sort_order = "newest_first"
+
+    start_text = request.args.get("from_date", "")
+    end_text = request.args.get("to_date", "")
+
+    def request_datetime(item):
+        created_at = item.get("created_at")
+        try:
+            timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            return timestamp.astimezone(timezone.utc)
+        except (AttributeError, ValueError):
+            return None
+
+    if sort_order == "custom_range":
+        try:
+            start_date = date.fromisoformat(start_text)
+            end_date = date.fromisoformat(end_text)
+            if start_date.isoformat() != start_text or end_date.isoformat() != end_text:
+                raise ValueError
+            if end_date < start_date:
+                raise ValueError
+        except ValueError:
+            flash("Enter a valid start and end date for the custom range.", "error")
+            rows = []
+        else:
+            rows = [
+                item for item in rows
+                if (timestamp := request_datetime(item)) is not None
+                and start_date <= timestamp.date() <= end_date
+            ]
+
+    dated_rows = [(item, request_datetime(item)) for item in rows]
+    dated_rows = [(item, timestamp) for item, timestamp in dated_rows if timestamp is not None]
+    undated_rows = [item for item in rows if request_datetime(item) is None]
+    dated_rows.sort(key=lambda row: row[1], reverse=sort_order != "oldest_first")
+    sorted_requests = [item for item, _timestamp in dated_rows] + undated_rows
+
+    today = datetime.now(timezone.utc).date()
+    return render_template(
+        "requests.html",
+        requests=sorted_requests,
+        sort_order=sort_order,
+        request_start_date=start_text,
+        request_end_date=end_text,
+        report_start_date=(today - timedelta(days=30)).isoformat(),
+        report_end_date=today.isoformat(),
+    )
+
+
+@app.get("/reports/requests/<report_format>")
+@login_required
+def request_report(report_format):
+    if report_format not in {"json", "csv", "pdf"}:
+        abort(404)
+
+    start_text = request.args.get("start_date", "")
+    end_text = request.args.get("end_date", "")
+    try:
+        start_date = date.fromisoformat(start_text)
+        end_date = date.fromisoformat(end_text)
+    except ValueError:
+        return jsonify(error="Provide start_date and end_date in YYYY-MM-DD format."), 400
+    if start_date.isoformat() != start_text or end_date.isoformat() != end_text:
+        return jsonify(error="Provide start_date and end_date in YYYY-MM-DD format."), 400
+    if end_date < start_date:
+        return jsonify(error="end_date must be on or after start_date."), 400
+
+    state = current_state()
+    rows = state["requests"]
+    if session["role"] == "shelter":
+        shelter_name = state["shelters"][current_shelter_key()]["name"]
+        rows = [item for item in rows if item.get("shelter") == shelter_name]
+
+    dated_requests = []
+    for item in rows:
+        created_at = item.get("created_at")
+        if not isinstance(created_at, str):
+            continue
+        try:
+            request_date = datetime.fromisoformat(created_at.replace("Z", "+00:00")).date()
+        except ValueError:
+            continue
+        if start_date <= request_date <= end_date:
+            dated_requests.append(item)
+
+    fulfilled = sum(str(item.get("status", "")).strip().casefold() == "fulfilled" for item in dated_requests)
+    report = {
+        "start_date": start_text,
+        "end_date": end_text,
+        "counts": {
+            "fulfilled": fulfilled,
+            "unfulfilled": len(dated_requests) - fulfilled,
+            "total": len(dated_requests),
+        },
+        "requests": [
+            {
+                "created_at": item.get("created_at"),
+                "shelter": item.get("shelter", ""),
+                "item": item.get("item", ""),
+                "qty": item.get("qty", 0),
+                "urgency": item.get("urgency", ""),
+                "status": item.get("status", ""),
+            }
+            for item in dated_requests
+        ],
+    }
+
+    if report_format == "json":
+        response = make_response(jsonify(report))
+        response.headers["Content-Disposition"] = "attachment; filename=shelter-requests-report.json"
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    if report_format == "csv":
+        output = io.StringIO(newline="")
+        writer = csv.writer(output)
+        writer.writerow(["Report start date", start_text])
+        writer.writerow(["Report end date", end_text])
+        writer.writerow(["Fulfilled requests", fulfilled])
+        writer.writerow(["Unfulfilled requests", len(dated_requests) - fulfilled])
+        writer.writerow(["Total requests", len(dated_requests)])
+        writer.writerow([])
+        writer.writerow(["Created at", "Shelter", "Supply", "Quantity", "Priority", "Status"])
+        for item in report["requests"]:
+            values = [item["created_at"], item["shelter"], item["item"], item["qty"], item["urgency"], item["status"]]
+            writer.writerow([
+                f"'{value}" if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")) else value
+                for value in values
+            ])
+        response = make_response(output.getvalue())
+        response.headers["Content-Type"] = "text/csv; charset=utf-8"
+        response.headers["Content-Disposition"] = "attachment; filename=shelter-requests-report.csv"
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    buffer = io.BytesIO()
+    styles = getSampleStyleSheet()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=0.55 * inch,
+        leftMargin=0.55 * inch,
+        topMargin=0.55 * inch,
+        bottomMargin=0.55 * inch,
+    )
+    story = [
+        Paragraph("Shelter requests report", styles["Title"]),
+        Paragraph(f"Date range: {escape(start_text)} to {escape(end_text)}", styles["BodyText"]),
+        Spacer(1, 0.18 * inch),
+    ]
+    summary = Table(
+        [
+            ["Fulfilled", "Unfulfilled", "Total"],
+            [str(fulfilled), str(len(dated_requests) - fulfilled), str(len(dated_requests))],
+        ],
+        colWidths=[2.45 * inch] * 3,
+    )
+    summary.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcefe4")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#183b2c")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#a8b9af")),
+        ("PADDING", (0, 0), (-1, -1), 7),
+    ]))
+    story.extend([summary, Spacer(1, 0.22 * inch)])
+    detail_rows = [["Created at", "Shelter", "Supply", "Quantity", "Priority", "Status"]]
+    detail_rows.extend([
+        [
+            Paragraph(escape(str(item["created_at"])), styles["BodyText"]),
+            Paragraph(escape(str(item["shelter"])), styles["BodyText"]),
+            Paragraph(escape(str(item["item"])), styles["BodyText"]),
+            str(item["qty"]),
+            Paragraph(escape(str(item["urgency"])), styles["BodyText"]),
+            Paragraph(escape(str(item["status"])), styles["BodyText"]),
+        ]
+        for item in report["requests"]
+    ])
+    details = LongTable(detail_rows, colWidths=[1.0 * inch, 1.25 * inch, 1.1 * inch, 0.55 * inch, 0.85 * inch, 1.9 * inch], repeatRows=1)
+    details.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcefe4")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#183b2c")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#b7c5bc")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("PADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.append(details)
+    document.build(story)
+    response = make_response(buffer.getvalue())
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = "attachment; filename=shelter-requests-report.pdf"
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.post("/requests/clear")
@@ -1310,8 +1571,25 @@ def submit_assessment():
     result = assess_shelter(state, username, previous["people"], previous["injured"])
     shelter_name = state["shelters"][username]["name"]
     return_surplus = request.form.get("return_surplus") == "on"
+    requested_items = set(request.form.getlist("requested_items"))
+    eligible_items = {
+        row["item"] for row in result["rows"]
+        if row["deficit"] > 0
+    }
+    selected_items = requested_items & eligible_items
+    if not selected_items and not return_surplus:
+        flash("Select at least one item to request or choose to return surplus.", "error")
+        return redirect(url_for("assessment"))
     submitted = sum(
-        record_assessment_row(state, username, shelter_name, result["urgency"], row, return_surplus)
+        record_assessment_row(
+            state,
+            username,
+            shelter_name,
+            result["urgency"],
+            row,
+            return_surplus,
+            request_selected=row["item"] in selected_items,
+        )
         for row in result["rows"]
     )
     flash(f"Assessment submitted with {submitted} deficit request(s).", "success")
