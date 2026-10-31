@@ -213,6 +213,9 @@ tbody tr:hover { background: rgba(131, 239, 178, .045); }
 .login-form-wrap .form-stack { gap: 9px; }
 .login-form-wrap .form-stack label:not(:first-of-type) { margin-top: 8px; }
 .login-form-wrap .form-stack input { height: 46px; }
+.auth-switch { margin: 20px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
+.auth-switch a { color: var(--mint); font-weight: 700; }
+.auth-switch a:hover { text-decoration: underline; }
 .demo-note { margin-top: 25px; padding: 12px 14px; border-left: 2px solid var(--mint); border-radius: 8px; color: var(--muted); font-size: 10px; line-height: 1.8; }
 .demo-note strong { color: #dcebe2; }
 

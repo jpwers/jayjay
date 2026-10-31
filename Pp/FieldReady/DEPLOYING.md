@@ -13,6 +13,8 @@ Open `http://127.0.0.1:5001`. For another device on the same Wi-Fi, open `http:/
 
 Local demo accounts are `admin` / `admin123`, `chennai_rep` / `chennai123`, and `mumbai_rep` / `mumbai123`.
 
+New shelter or organization users can create accounts from the sign-in page. These accounts have shelter access; administrator access remains limited to the configured administrator account. Account credentials and shelter inventory are stored in the application database.
+
 ## Internet deployment with Render
 
 1. Put `App.py`, `web_app.py`, `requirements.txt`, `Procfile`, `render.yaml`, `templates/`, and `static/` in a private GitHub repository. Do not commit `.env`, `relief_data.db`, or real credentials.

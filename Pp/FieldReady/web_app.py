@@ -1,12 +1,14 @@
 import difflib
 import json
 import os
+import re
 import secrets
 import sqlite3
 from functools import wraps
 from pathlib import Path
 
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -108,6 +110,12 @@ def initialize_database():
     with connect_database() as connection:
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("CREATE TABLE IF NOT EXISTS app_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)")
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS user_accounts ("
+            "username TEXT PRIMARY KEY COLLATE NOCASE, "
+            "password_hash TEXT NOT NULL, "
+            "display_name TEXT NOT NULL)"
+        )
         saved = connection.execute("SELECT payload FROM app_state WHERE id = 1").fetchone()
         if saved is None:
             state = migrate_json_state(default_state())
@@ -176,6 +184,8 @@ def template_helpers():
         return session["csrf_token"]
 
     def current_display_name():
+        if session.get("display_name"):
+            return session["display_name"]
         account = ACCOUNTS.get(session.get("username"), {})
         return account.get("name", "")
 
@@ -1076,16 +1086,62 @@ def dispatch_request(state, item):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "")
+        registered_account = g.db.execute(
+            "SELECT password_hash, display_name FROM user_accounts WHERE username = ?",
+            (username,),
+        ).fetchone()
         account = ACCOUNTS.get(username)
-        if account and secrets.compare_digest(password, account["password"]):
-            session.clear()
-            session["username"] = username
-            session["role"] = account["role"]
-            return redirect(url_for("dashboard"))
-        flash("Sign-in failed. Check your username and password.", "error")
-    return render_template("login.html", show_demo_credentials=not IS_PRODUCTION)
+        if registered_account and check_password_hash(registered_account["password_hash"], password):
+            role = "shelter"
+            display_name = registered_account["display_name"]
+        elif account and secrets.compare_digest(password, account["password"]):
+            role = account["role"]
+            display_name = account["name"]
+        else:
+            flash("Sign-in failed. Check your username and password.", "error")
+            return render_template("login.html", show_demo_credentials=not IS_PRODUCTION, is_registration=False)
+
+        session.clear()
+        session["username"] = username
+        session["role"] = role
+        session["display_name"] = display_name
+        return redirect(url_for("dashboard"))
+    return render_template("login.html", show_demo_credentials=not IS_PRODUCTION, is_registration=False)
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        display_name = request.form.get("display_name", "").strip()
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "")
+
+        if not display_name or len(display_name) > 80:
+            flash("Enter a shelter or organization name of 1 to 80 characters.", "error")
+        elif not re.fullmatch(r"[a-z0-9_]{3,30}", username):
+            flash("Username must be 3 to 30 characters using letters, numbers, and underscores.", "error")
+        elif len(password) < 8 or len(password) > 128:
+            flash("Password must be between 8 and 128 characters.", "error")
+        elif username in ACCOUNTS or g.db.execute(
+            "SELECT 1 FROM user_accounts WHERE username = ?",
+            (username,),
+        ).fetchone():
+            flash("That username is already taken.", "error")
+        else:
+            g.db.execute(
+                "INSERT INTO user_accounts (username, password_hash, display_name) VALUES (?, ?, ?)",
+                (username, generate_password_hash(password), display_name),
+            )
+            g.state["shelters"][username] = {
+                "name": display_name,
+                "current_stock": dict.fromkeys(g.state["central_inventory"], 0),
+            }
+            flash("Your shelter account is ready. Sign in to continue.", "success")
+            return redirect(url_for("login"))
+
+    return render_template("login.html", show_demo_credentials=False, is_registration=True)
 
 
 @app.post("/logout")
