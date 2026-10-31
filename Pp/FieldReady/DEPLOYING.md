@@ -9,7 +9,7 @@ python -m pip install -r requirements.txt
 python App.py
 ```
 
-Open `http://127.0.0.1:5000`. For another device on the same Wi-Fi, open `http://<this-computer-LAN-IP>:5000` and allow Python through Windows Firewall on private networks. Do not forward port 5000 from your router for public internet use.
+Open `http://127.0.0.1:5001`. For another device on the same Wi-Fi, open `http://<this-computer-LAN-IP>:5001` and allow Python through Windows Firewall on private networks. Do not forward port 5001 from your router for public internet use.
 
 Local demo accounts are `admin` / `admin123`, `chennai_rep` / `chennai123`, and `mumbai_rep` / `mumbai123`.
 
