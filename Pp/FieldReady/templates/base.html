@@ -27,18 +27,17 @@
     <aside class="sidebar">
       <p class="nav-caption">OPERATIONS</p>
       <nav aria-label="Main navigation">
-        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><span class="nav-index">01</span>Overview</a>
+        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><span class="nav-index">01</span>Dashboard</a>
         <a class="nav-link {% if request.endpoint == 'inventory' %}active{% endif %}" href="{{ url_for('inventory') }}"><span class="nav-index">02</span>Inventory</a>
         <a class="nav-link {% if request.endpoint == 'requests_page' %}active{% endif %}" href="{{ url_for('requests_page') }}"><span class="nav-index">03</span>Needs &amp; requests</a>
         {% if session.get('role') == 'admin' %}
           <a class="nav-link {% if request.endpoint == 'restock' %}active{% endif %}" href="{{ url_for('restock') }}"><span class="nav-index">04</span>Stock UP</a>
           <a class="nav-link {% if request.endpoint == 'dispatch' %}active{% endif %}" href="{{ url_for('dispatch') }}"><span class="nav-index">05</span>Dispatch queue</a>
         {% else %}
-          <a class="nav-link {% if request.endpoint == 'contributions' %}active{% endif %}" href="{{ url_for('contributions') }}"><span class="nav-index">04</span>Log contribution</a>
+          <a class="nav-link {% if request.endpoint == 'contributions' %}active{% endif %}" href="{{ url_for('contributions') }}"><span class="nav-index">04</span>Record contributions</a>
           <a class="nav-link {% if request.endpoint == 'assessment' %}active{% endif %}" href="{{ url_for('assessment') }}"><span class="nav-index">05</span>Assess needs</a>
         {% endif %}
       </nav>
-      <div class="sidebar-note"><span class="status-dot"></span><span>Shared live inventory<br><small>Updates save automatically</small></span></div>
     </aside>
     <main class="main-content">
       {% with messages = get_flashed_messages(with_categories=true) %}

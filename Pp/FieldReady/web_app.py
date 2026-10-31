@@ -112,6 +112,16 @@ def initialize_database():
         if saved is None:
             state = migrate_json_state(default_state())
             connection.execute("INSERT INTO app_state (id, payload) VALUES (1, ?)", (json.dumps(state),))
+        else:
+            state = json.loads(saved["payload"])
+            if not isinstance(state.get("last_requests"), dict):
+                last_assessments = state.get("last_assessments", {})
+                state["last_requests"] = last_assessments if isinstance(last_assessments, dict) else {}
+                state.pop("last_assessments", None)
+                connection.execute(
+                    "UPDATE app_state SET payload = ? WHERE id = 1",
+                    (json.dumps(state),),
+                )
 
 
 initialize_database()
@@ -1085,9 +1095,9 @@ def dashboard():
     if shelter:
         visible_requests = [item for item in visible_requests if item["shelter"] == shelter["name"]]
         metrics = [
-            ("On-hand units", sum(shelter["current_stock"].values()), "Across your shelter supplies"),
+            ("Supply On-Hand", sum(shelter["current_stock"].values()), "Across your shelter supplies"),
             ("Supply categories", len(shelter["current_stock"]), "Tracked at your location"),
-            ("Open requests", sum(item["status"] == "Pending" for item in visible_requests), "Waiting for dispatch"),
+            ("Current Requests", sum(item["status"] == "Pending" for item in visible_requests), "Waiting for dispatch"),
         ]
         title = shelter["name"]
     else:
@@ -1178,9 +1188,9 @@ def contributions():
             return redirect(url_for("inventory"))
     return render_template(
         "stock_form.html",
-        title="Shelter contribution",
+        title="Supply contribution",
         description="Add donated or externally sourced supplies to your shelter.",
-        form_heading="Record shelter contribution",
+        form_heading="Record Supply contribution",
         submit_label="Add contribution",
     )
 

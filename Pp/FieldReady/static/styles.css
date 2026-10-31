@@ -65,7 +65,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .brand small { margin-top: 1px; color: var(--mint); font-size: 9px; letter-spacing: .45px; }
 .topbar-right { gap: 20px; }
 .connection { gap: 8px; color: var(--muted); font-size: 11px; }
-.connection i, .status-dot {
+.connection i {
   width: 7px;
   height: 7px;
   display: inline-block;
@@ -118,9 +118,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .nav-link.active { background: rgba(91, 220, 147, .07); border-color: rgba(131, 239, 178, .12); color: var(--mint); }
 .nav-index { color: #6f8278; font: 10px var(--font-display); }
 .nav-link.active .nav-index { color: var(--mint); }
-.sidebar-note { display: flex; align-items: flex-start; gap: 9px; margin: auto 8px 0; padding: 15px 10px; border-top: 1px solid var(--line); color: #a9bbb1; font-size: 10px; }
-.sidebar-note .status-dot { flex: 0 0 auto; margin-top: 5px; }
-.sidebar-note small { color: var(--subtle); font-size: 9px; }
 .main-content { width: min(100%, 1420px); min-width: 0; margin: 0 auto; padding: 0 38px 24px; }
 .page-heading { min-height: 158px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 25px 0 23px; border-bottom: 1px solid var(--line); }
 .page-heading h1, .error-state h1 { margin: 8px 0 5px; color: var(--text); font: 700 28px/1.2 var(--font-display); letter-spacing: -.5px; }
@@ -235,7 +232,7 @@ tbody tr:hover { background: rgba(131, 239, 178, .045); }
   .connection, .identity { display: none; }
   .app-frame { display: block; min-height: calc(100vh - 66px); }
   .sidebar { width: 100%; padding: 8px 10px; border-width: 0 0 1px; }
-  .nav-caption, .sidebar-note { display: none; }
+  .nav-caption { display: none; }
   .sidebar nav { display: flex; overflow-x: auto; gap: 3px; }
   .nav-link { min-height: 38px; flex: 0 0 auto; gap: 6px; padding: 0 10px; font-size: 10px; }
   .nav-index { display: none; }

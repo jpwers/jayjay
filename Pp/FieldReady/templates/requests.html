@@ -7,6 +7,6 @@
 </div>
   {% if requests %}<div class="table-wrap"><table><thead><tr><th>SHELTER</th><th>SUPPLY</th><th>REQUESTED</th><th>PRIORITY</th><th>STATUS</th></tr></thead><tbody>
     {% for item in requests %}<tr><td class="cell-strong">{{ item.shelter }}</td><td>{{ item.item }}</td><td>{{ "{:,.0f}".format(item.qty) }} units</td><td><span class="priority priority-{{ item.urgency|lower }}">{{ item.urgency }}</span></td><td><span class="request-status {% if item.status == 'Pending' %}status-pending{% elif item.status == 'Fulfilled' %}status-fulfilled{% else %}status-other{% endif %}">{{ item.status }}</span></td></tr>{% endfor %}
-  </tbody></table></div>{% else %}<div class="empty-state"><span class="empty-mark">—</span><strong>No requests yet</strong><p>Completed Supply Requests will appear here.</p></div>{% endif %}
+  </tbody></table></div>{% else %}<div class="empty-state"><span class="empty-mark">—</span><strong>No requests yet</strong><p>Supply Requests will appear here.</p></div>{% endif %}
 </section>
 {% endblock %}
