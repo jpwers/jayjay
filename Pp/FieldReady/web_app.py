@@ -772,14 +772,14 @@ class ReliefApp:
         shelter = shelters_accounts[self.user] if self.role == "shelter" else None
         name = shelter["shelter_name"] if shelter else "Operation Hub"
         self.page_heading(name, "Live view of essential supplies and response activity.")
-        pending = [request for request in requests_queue if request["status"] == "Pending"]
+        pending = [request for request in requests_queue if request_is_open(request)]
         critical = sum(request["urgency"] == "Critical" for request in pending)
         if shelter:
             stock = shelter["current_stock"]
             metrics = [
                 ("ON-HAND UNITS", sum(stock.values()), "Across tracked supplies"), 
                 ("ITEM CATEGORIES", len(stock), "In your shelter stock"), 
-                ("OPEN REQUESTS", sum(request["shelter"] == name and request["status"] == "Pending" for request in pending), "Awaiting warehouse action")
+                ("OPEN REQUESTS", sum(request["shelter"] == name for request in pending), "Awaiting warehouse action")
             ]
         else:
             metrics = [
@@ -964,13 +964,13 @@ class ReliefApp:
         block = self.panel(self.content, "Pending requests")
         block.pack(fill="both", expand=True, padx=32, pady=(0, 16))
         table = self.make_table(block, [("shelter", "SHELTER", 230), ("item", "SUPPLY", 150), ("qty", "REQUESTED", 90), ("urgency", "PRIORITY", 110), ("stock", "CENTRAL AVAILABLE", 150)], 12)
-        pending = sorted((request for request in requests_queue if request["status"] == "Pending"), key=lambda request: urgency_rank[request["urgency"]])
+        pending = sorted((request for request in requests_queue if request_is_open(request)), key=lambda request: urgency_rank[request["urgency"]])
         for request in pending:
             table.insert("", "end", values=(request["shelter"], request["item"], request["qty"], request["urgency"], central_inventory.get(request["item"], 0)))
         ttk.Button(self.content, text="Run priority dispatch", style="Primary.TButton", command=lambda: self.dispatch(table)).pack(anchor="w", padx=32, pady=(0, 22))
 
     def dispatch(self, table):
-        pending = sorted((request for request in requests_queue if request["status"] == "Pending"), key=lambda request: urgency_rank[request["urgency"]])
+        pending = sorted((request for request in requests_queue if request_is_open(request)), key=lambda request: urgency_rank[request["urgency"]])
         if not pending:
             messagebox.showinfo("Queue is clear", "There are no pending requests to dispatch.")
             return
@@ -979,15 +979,17 @@ class ReliefApp:
         partial = 0
         for request in pending:
             available = central_inventory.get(request["item"], 0)
+            partially_fulfilled = request["status"].startswith("Partially fulfilled")
             if available >= request["qty"]:
                 central_inventory[request["item"]] -= request["qty"]
                 request["status"] = "Fulfilled"
                 fulfilled += 1
             elif available > 0:
                 request["status"] = f"Partially fulfilled ({available} sent)"
+                request["qty"] -= available
                 central_inventory[request["item"]] = 0
                 partial += 1
-            else:
+            elif not partially_fulfilled:
                 request["status"] = "Unfulfilled (out of stock)"
                 
         save_state()
@@ -1048,18 +1050,26 @@ def record_assessment_row(state, username, shelter_name, urgency, row, return_su
     return bool(deficit)
 
 
+def request_is_open(item):
+    status = item.get("status", "")
+    return status == "Pending" or status.startswith("Partially fulfilled")
+
+
 def dispatch_request(state, item):
     available = state["central_inventory"].get(item["item"], 0)
     requested = item["qty"]
+    partially_fulfilled = item["status"].startswith("Partially fulfilled")
     if available >= requested:
         state["central_inventory"][item["item"]] -= requested
         item["status"] = "Fulfilled"
         return "fulfilled"
     if available > 0:
         item["status"] = f"Partially fulfilled ({available} sent)"
+        item["qty"] = requested - available
         state["central_inventory"][item["item"]] = 0
         return "partial"
-    item["status"] = "Unfulfilled (out of stock)"
+    if not partially_fulfilled:
+        item["status"] = "Unfulfilled (out of stock)"
     return "unfulfilled"
 
 
@@ -1097,11 +1107,11 @@ def dashboard():
         metrics = [
             ("Supply On-Hand", sum(shelter["current_stock"].values()), "Across your shelter supplies"),
             ("Supply categories", len(shelter["current_stock"]), "Tracked at your location"),
-            ("Current Requests", sum(item["status"] == "Pending" for item in visible_requests), "Waiting for dispatch"),
+            ("Current Requests", sum(request_is_open(item) for item in visible_requests), "Waiting for dispatch"),
         ]
         title = shelter["name"]
     else:
-        pending = [item for item in state["requests"] if item["status"] == "Pending"]
+        pending = [item for item in state["requests"] if request_is_open(item)]
         metrics = [
             ("Central stock", sum(state["central_inventory"].values()), "Units ready for response"),
             ("Pending requests", len(pending), "Across all shelters"),
@@ -1249,7 +1259,7 @@ def submit_assessment():
 @role_required("admin")
 def dispatch():
     state = current_state()
-    pending = [item for item in state["requests"] if item["status"] == "Pending"]
+    pending = [item for item in state["requests"] if request_is_open(item)]
     pending.sort(key=lambda item: {"Critical": 1, "High": 2, "Moderate": 3}.get(item["urgency"], 4))
     if request.method == "POST":
         if not pending:
