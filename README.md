@@ -1,6 +1,6 @@
 # Bytes Of Hope 
 
-FieldReady is a lightweight, production-ready disaster relief and emergency inventory management system designed to streamline crisis response operations. Developed with speed and reliability in mind, FieldReady bridges the gap between field assessments, resource allocation, and real-time dispatch management under critical conditions.
+Bytes of Hope is a lightweight, production-ready disaster relief and emergency inventory management system designed to streamline crisis response operations. Developed with speed and reliability in mind, Bytes of Hope bridges the gap between field assessments, resource allocation, and real-time dispatch management under critical conditions.
 
 ## Features
 - Inventory Monitoring in Real Time: Monitor the inventory of supplies, food supplies, medical kits, and equipment from all the central warehouses and relief centers.
