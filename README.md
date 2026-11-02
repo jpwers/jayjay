@@ -46,13 +46,12 @@ python App.py
 Open [http://127.0.0.1:5001] or [192.168.x.xxx:5001] in your browser. The app creates or updates its SQLite database at `Pp/FieldReady/relief_data.db` by default.
 
 ### Tech Stack
-Framework: Python 3.13 / Flask 3.1
-Server Interface: Gunicorn 23.0
-Database: SQLite3 
-PDF Report Generation: ReportLab 4.x
-Frontend: HTML5, Modern CSS (styles.css), Jinja2 Templates
-Deployment: Render (render.yaml) / Heroku (Procfile)
-
+- Framework: Python 3.13 / Flask 3.1
+- Server Interface: Gunicorn 23.0
+- Database: SQLite3
+- PDF Report Generation: ReportLab 4.x
+- Frontend: HTML5, Modern CSS (styles.css), Jinja2 Templates
+- Deployment: Render (render.yaml) / Heroku (Procfile)
 ## Deployment
 
 See [Pp/FieldReady/DEPLOYING.md](Pp/FieldReady/DEPLOYING.md) for Render deployment instructions and production environment variables.
