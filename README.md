@@ -12,24 +12,16 @@ Bytes of Hope is a lightweight, production-ready disaster relief and emergency i
 
 ## Screenshots
 
-### Operations dashboard
 ![Operations dashboard](screenshots/Screenshot%202026-11-02%20191326.png)
 
 ![Operations dashboard in browser](screenshots/Screenshot%202026-11-02%20191311.png)
 
-### Inventory
 ![Inventory page](screenshots/Screenshot%202026-11-02%20191402.png)
 
-### Shelter dashboard
 ![Shelter dashboard](screenshots/Screenshot%202026-11-02%20191424.png)
 
-### Supply contribution
 ![Supply contribution form](screenshots/Screenshot%202026-11-02%20191446.png)
 
-### Supply assessment
-![Supply assessment results](screenshots/Screenshot%202026-11-02%20191513.png)
-
-### Request history and reports
 ![Request history and report export](screenshots/Screenshot%202026-11-02%20191349.png)
 
 ## Run locally
