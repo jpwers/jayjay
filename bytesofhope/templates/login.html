@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{% if is_registration %}Create account{% else %}Sign in{% endif %}{% endblock %}
+{% block unauthenticated %}
+<main class="login-layout">
+  <section class="login-brand-panel">
+    <div class="login-brand">
+      <img class="brand-mark brand-mark-large" src="{{ url_for('static', filename='bytes-of-hope-mark.png') }}" alt="">
+      <span><strong>Bytes Of Hope</strong><small>By Muroor Bytes</small></span>
+    </div>
+    <div class="login-message">
+      <p class="eyebrow">COORDINATED RESPONSE</p>
+      <h1>Move essential supplies where they matter.</h1>
+      <p>One clear view of shelter needs, available stock, and the next dispatch.</p>
+    </div>
+    <div class="login-panel-footer"><span>WAREHOUSE</span><b>/</b><span>SHELTER</span><b>/</b><span>RESPONSE</span></div>
+  </section>
+  <section class="login-form-panel">
+    <div class="login-form-wrap">
+      <p class="eyebrow">{% if is_registration %}NEW SHELTER ACCESS{% else %}OPERATIONS ACCESS{% endif %}</p>
+      <h2>{% if is_registration %}Create account{% else %}Sign in{% endif %}</h2>
+      <p class="form-intro">{% if is_registration %}Create an account for your shelter or organization.{% else %}Sign in with your shelter or operations account.{% endif %}</p>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}<div class="flash-stack">{% for category, message in messages %}<div class="flash flash-{{ category }}" role="alert">{{ message }}</div>{% endfor %}</div>{% endif %}
+      {% endwith %}
+      <form method="post" action="{{ url_for('register' if is_registration else 'login') }}" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if is_registration %}
+          <label for="display_name">SHELTER OR ORGANIZATION NAME</label>
+          <input id="display_name" name="display_name" maxlength="80" autocomplete="organization" required autofocus>
+        {% endif %}
+        <label for="username">USERNAME</label>
+        <input id="username" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+" autocomplete="username" required {% if not is_registration %}autofocus{% endif %}>
+        <label for="password">PASSWORD</label>
+        <input id="password" name="password" type="password" minlength="{% if is_registration %}8{% else %}1{% endif %}" maxlength="128" autocomplete="{% if is_registration %}new-password{% else %}current-password{% endif %}" required>
+        <button class="button button-primary button-wide" type="submit">{% if is_registration %}Create account{% else %}Sign in{% endif %} <span aria-hidden="true">&rarr;</span></button>
+      </form>
+      <p class="auth-switch">
+        {% if is_registration %}Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+        {% else %}Need a shelter account? <a href="{{ url_for('register') }}">Create one</a>{% endif %}
+      </p>
+      {% if show_demo_credentials and not is_registration %}
+        <div class="demo-note"><strong>Local demo accounts</strong><br>admin / admin123<br>chennai_rep / chennai123<br>mumbai_rep / mumbai123</div>
+      {% endif %}
+    </div>
+  </section>
+</main>
+{% endblock %}

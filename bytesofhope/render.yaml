@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: fieldready-relief
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn web_app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4
+    healthCheckPath: /login
+    disk:
+      name: fieldready-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /var/data/relief_data.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CHENNAI_PASSWORD
+        sync: false
+      - key: MUMBAI_PASSWORD
+        sync: false
