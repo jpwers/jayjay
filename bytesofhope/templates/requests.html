@@ -22,6 +22,7 @@
 </div>
   <form class="request-filter-form" method="get" action="{{ url_for('requests_page') }}">
     <div><label for="request-sort">ARRANGE BY</label><select id="request-sort" name="sort">
+      <option value="priority_first" {% if sort_order == 'priority_first' %}selected{% endif %}>Highest priority first</option>
       <option value="newest_first" {% if sort_order == 'newest_first' %}selected{% endif %}>Newest to oldest</option>
       <option value="oldest_first" {% if sort_order == 'oldest_first' %}selected{% endif %}>Oldest to newest</option>
       <option value="custom_range" {% if sort_order == 'custom_range' %}selected{% endif %}>Custom date range</option>

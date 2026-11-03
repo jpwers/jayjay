@@ -19,4 +19,7 @@
   {% else %}<div class="empty-state"><span class="empty-mark">—</span><strong>No requests recorded</strong><p>New requests will appear here.</p></div>{% endif %}
 </section>
 <section class="workflow-strip"><span class="workflow-number">01</span><span><strong>Assess</strong><small>Shelters calculate their requirements</small></span><i></i><span class="workflow-number">02</span><span><strong>Coordinate</strong><small>Deficits enter the shared queue</small></span><i></i><span class="workflow-number">03</span><span><strong>Dispatch</strong><small>Warehouse allocates by urgency</small></span></section>
+{% for item in low_stock_items %}
+  <div class="alert alert-danger">LOW STOCK: {{ item.name }} ({{ item.quantity }} units)</div>
+{% endfor %}
 {% endblock %}

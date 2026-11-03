@@ -9,6 +9,7 @@ import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from uuid import uuid4
 from xml.sax.saxutils import escape
 
 from flask import Flask, abort, flash, g, jsonify, make_response, redirect, render_template, request, session, url_for
@@ -56,6 +57,8 @@ ACCOUNTS = {
         "name": "Mumbai Coastal Safehouse",
     },
 }
+
+REQUEST_URGENCY_RANK = {"critical": 1, "high": 2, "moderate": 3}
 
 
 def default_state():
@@ -120,6 +123,28 @@ def canonicalize_food_category(state):
                     item["item"] = "Food"
 
 
+def ensure_data_model_fields(state):
+    shelter_ids_by_name = {}
+    shelters = state.get("shelters", {})
+    if isinstance(shelters, dict):
+        for shelter in shelters.values():
+            if not isinstance(shelter, dict):
+                continue
+            shelter.setdefault("shelter_id", str(uuid4()))
+            shelter.setdefault("priority", None)
+            shelter.setdefault("location", {"latitude": None, "longitude": None})
+            if isinstance(shelter.get("name"), str):
+                shelter_ids_by_name[shelter["name"]] = shelter["shelter_id"]
+
+    requests = state.get("requests", [])
+    if isinstance(requests, list):
+        for item in requests:
+            if not isinstance(item, dict):
+                continue
+            item.setdefault("request_id", str(uuid4()))
+            item.setdefault("shelter_id", shelter_ids_by_name.get(item.get("shelter")))
+
+
 def valid_stock(stock):
     return {
         item: quantity
@@ -167,10 +192,12 @@ def initialize_database():
         saved = connection.execute("SELECT payload FROM app_state WHERE id = 1").fetchone()
         if saved is None:
             state = migrate_json_state(default_state())
+            ensure_data_model_fields(state)
             connection.execute("INSERT INTO app_state (id, payload) VALUES (1, ?)", (json.dumps(state),))
         else:
             state = json.loads(saved["payload"])
             canonicalize_food_category(state)
+            ensure_data_model_fields(state)
             if not isinstance(state.get("last_requests"), dict):
                 last_assessments = state.get("last_assessments", {})
                 state["last_requests"] = last_assessments if isinstance(last_assessments, dict) else {}
@@ -1107,6 +1134,8 @@ def record_assessment_row(state, username, shelter_name, urgency, row, return_su
     deficit = row["deficit"]
     if deficit and request_selected:
         state["requests"].append({
+            "request_id": str(uuid4()),
+            "shelter_id": state["shelters"][username]["shelter_id"],
             "shelter": shelter_name,
             "item": row["item"],
             "qty": deficit,
@@ -1196,7 +1225,10 @@ def register():
                 (username, generate_password_hash(password), display_name),
             )
             g.state["shelters"][username] = {
+                "shelter_id": str(uuid4()),
                 "name": display_name,
+                "priority": None,
+                "location": {"latitude": None, "longitude": None},
                 "current_stock": dict.fromkeys(g.state["central_inventory"], 0),
             }
             flash("Your shelter account is ready. Sign in to continue.", "success")
@@ -1236,7 +1268,18 @@ def dashboard():
         ]
         title = "Operation Hub"
     latest = list(reversed(visible_requests[-12:]))
-    return render_template("dashboard.html", title=title, metrics=metrics, requests=latest)
+    low_stock_items = [
+        {"name": item, "quantity": quantity}
+        for item, quantity in state["central_inventory"].items()
+        if quantity < 10
+    ]
+    return render_template(
+        "dashboard.html",
+        title=title,
+        metrics=metrics,
+        requests=latest,
+        low_stock_items=low_stock_items,
+    )
 
 
 @app.route("/inventory")
@@ -1260,10 +1303,10 @@ def requests_page():
         shelter_name = state["shelters"][current_shelter_key()]["name"]
         rows = [item for item in rows if item["shelter"] == shelter_name]
 
-    sort_order = request.args.get("sort", "newest_first")
-    if sort_order not in {"newest_first", "oldest_first", "custom_range"}:
+    sort_order = request.args.get("sort", "priority_first")
+    if sort_order not in {"priority_first", "newest_first", "oldest_first", "custom_range"}:
         flash("Choose a valid request date order.", "error")
-        sort_order = "newest_first"
+        sort_order = "priority_first"
 
     start_text = request.args.get("from_date", "")
     end_text = request.args.get("to_date", "")
@@ -1299,7 +1342,16 @@ def requests_page():
     dated_rows = [(item, request_datetime(item)) for item in rows]
     dated_rows = [(item, timestamp) for item, timestamp in dated_rows if timestamp is not None]
     undated_rows = [item for item in rows if request_datetime(item) is None]
-    dated_rows.sort(key=lambda row: row[1], reverse=sort_order != "oldest_first")
+    if sort_order == "priority_first":
+        priority_key = lambda item: REQUEST_URGENCY_RANK.get(
+            str(item.get("urgency", "")).casefold(), 4
+        )
+        dated_rows.sort(
+            key=lambda row: (priority_key(row[0]), -row[1].timestamp())
+        )
+        undated_rows.sort(key=priority_key)
+    else:
+        dated_rows.sort(key=lambda row: row[1], reverse=sort_order != "oldest_first")
     sorted_requests = [item for item, _timestamp in dated_rows] + undated_rows
 
     today = datetime.now(timezone.utc).date()
@@ -1601,7 +1653,11 @@ def submit_assessment():
 def dispatch():
     state = current_state()
     pending = [item for item in state["requests"] if request_is_open(item)]
-    pending.sort(key=lambda item: {"Critical": 1, "High": 2, "Moderate": 3}.get(item["urgency"], 4))
+    pending.sort(
+        key=lambda item: REQUEST_URGENCY_RANK.get(
+            str(item.get("urgency", "")).casefold(), 4
+        )
+    )
     if request.method == "POST":
         if not pending:
             flash("There are no pending requests to dispatch.", "error")
