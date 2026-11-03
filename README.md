@@ -9,6 +9,13 @@ Bytes of Hope is a lightweight, production-ready disaster relief and emergency i
 - Operations Dashboard: Make use of an interactive dashboard with constant analysis to allow total control over the operations for the management.
 - SQLite Persistence with No Downtime: Database configured with WAL (Write-Ahead Logging) mode (relief_data.db) to allow concurrent reading and writing of data.
 - Report Downloads: Allows logging of the reports according to date. Reports downloadable in the formats of json, csv, or pdf.
+- Priority-based request queue: Requests are ordered by urgency, with critical requests first, followed by high and moderate priority.
+
+## Data models
+
+The application stores its operational state as JSON in SQLite. Shelter records include a stable `shelter_id`, name, nullable priority, nullable latitude and longitude, and current stock. Request records include a stable `request_id`, the associated `shelter_id`, shelter name, item, quantity, urgency, status, and creation time.
+
+On startup, existing shelter and request records are assigned IDs and given the new shelter fields without discarding existing data. The app does not currently collect shelter priority or coordinates, so those values remain unset.
 
 ## Screenshots
 
@@ -29,13 +36,12 @@ Bytes of Hope is a lightweight, production-ready disaster relief and emergency i
 Requirements: Python 3. Install the app dependencies and start the Flask server:
 
 ```bash
-cd \location\bytesofhope
-python -m venv .venv.\.venv\scripts\activate.ps1
+cd bytesofhope
 python -m pip install -r requirements.txt
 python App.py
 ```
 
-Open [http://127.0.0.1:5001] or [192.168.x.xxx:5001] in your browser. The app creates or updates its SQLite database at `Pp/FieldReady/relief_data.db` by default.
+Open [http://127.0.0.1:5001](http://127.0.0.1:5001) in your browser. The app creates or updates its SQLite database at `bytesofhope/relief_data.db` by default.
 
 ### Tech Stack
 - Framework: Python 3.13 / Flask 3.1
@@ -46,12 +52,12 @@ Open [http://127.0.0.1:5001] or [192.168.x.xxx:5001] in your browser. The app cr
 - Deployment: Render (render.yaml) / Heroku (Procfile)
 ## Deployment
 
-See [Pp/FieldReady/DEPLOYING.md](Pp/FieldReady/DEPLOYING.md) for Render deployment instructions and production environment variables.
+See [bytesofhope/DEPLOYING.md](bytesofhope/DEPLOYING.md) for Render deployment instructions and production environment variables.
 
 ## Project files
 
-- `Pp/FieldReady/App.py` — local development server entry point
-- `Pp/FieldReady/web_app.py` — Flask routes, application logic, and SQLite setup
-- `Pp/FieldReady/templates/` — Jinja templates
-- `Pp/FieldReady/static/` — CSS and static assets
-- `Pp/FieldReady/requirements.txt` — Python dependencies
+- `bytesofhope/App.py` — local development server entry point
+- `bytesofhope/web_app.py` — Flask routes, application logic, and SQLite setup
+- `bytesofhope/templates/` — Jinja templates
+- `bytesofhope/static/` — CSS and static assets
+- `bytesofhope/requirements.txt` — Python dependencies
